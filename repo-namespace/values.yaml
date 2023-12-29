@@ -1,0 +1,5 @@
+# Namespace to be created and managed
+namespace: firefly
+
+# Repository name
+repositoryName: myrepo

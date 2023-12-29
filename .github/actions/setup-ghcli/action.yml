@@ -1,0 +1,32 @@
+name: Setup Github CLI
+author: hashtagcyber
+description: Verifies that GHCLI is installed, installs it if not
+runs:
+  using: "composite"
+  steps:
+    - name: Check for CLI
+      id: check_cli
+      shell: bash
+      run: |
+        INSTALL_CLI=0
+        gh --version || INSTALL_CLI=$?
+        echo "install-cli=$INSTALL_CLI" >> $GITHUB_OUTPUT
+
+    - name: Install GH CLI
+      if: steps.check_cli.outputs.install-cli != '0'
+      shell: bash
+      run: |
+        type -p curl >/dev/null || (sudo apt-get update --yes && sudo apt-get install curl --yes)
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+        && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+        && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+        && sudo apt-get update --yes \
+        && sudo apt-get install gh --yes
+
+    - name: Install GH CLI
+      if: steps.check_cli.outputs.install-cli == '0'
+      shell: bash
+      run: |
+        echo "GH CLI Already Installed."
+
+

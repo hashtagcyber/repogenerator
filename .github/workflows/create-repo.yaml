@@ -1,0 +1,59 @@
+name: Create Repo and Namespace
+on: 
+  workflow_dispatch:
+    inputs:
+      repo-name:
+        description: 'Name of new repository'
+        required: true
+
+jobs:
+  create-repo:
+    runs-on: arc-runner-set
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get GH Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Create Dev Namespace and SA
+        id: create-dev-namespace
+        uses: ./.github/actions/create-repo-namespace
+        with:
+          basename: ${{ inputs.repo-name }}
+          environment: 'dev'
+          kube_admin_config: ${{ secrets.KUBE_CONFIG_DATA }}
+
+      - name: Create Prod Namespace and SA
+        id: create-prod-namespace
+        uses: ./.github/actions/create-repo-namespace
+        with:
+          basename: ${{ inputs.repo-name }}
+          environment: 'prod'
+          kube_admin_config: ${{ secrets.KUBE_CONFIG_DATA }}
+
+
+      - name: Install GH CLI
+        uses: ./.github/actions/setup-ghcli
+        
+      - name: Create Repo and Store Secrets
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          echo "Check namespace: ${{ steps.create-dev-namespace.outputs.new-namespace }}"
+          # Create repo
+          gh repo create ${{ github.repository_owner }}/${{ inputs.repo-name }} --private
+          # Set secrets
+          gh secret set KUBECONFIG_DEV -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-dev-namespace.outputs.new-kubeconfig }}"
+          gh secret set KUBECONFIG_PROD -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-prod-namespace.outputs.new-kubeconfig }}"
+          # Set variables
+          gh variable set K8S_NAMESPACE_DEV -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-dev-namespace.outputs.new-namespace }}"
+          gh variable set K8S_NAMESPACE_PROD -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-prod-namespace.outputs.new-namespace }}"
+          gh variable set K8S_SERVICEACCOUNT_DEV -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-dev-namespace.outputs.new-serviceaccount }}"
+          gh variable set K8S_SERVICEACCOUNT_PROD -R ${{ github.repository_owner }}/${{ inputs.repo-name }} --body "${{ steps.create-prod-namespace.outputs.new-serviceaccount }}"

@@ -1,0 +1,108 @@
+name: Create Repo Namespace
+author: hashtagcyber
+description: Creates a namespace and returns serviceaccount credentials for the namespace.
+
+inputs:
+  basename:
+    description: 'Repository name'
+    required: true
+  environment:
+    description: 'prod/dev/etc. Appended to namespace name'
+    required: true
+  kube_admin_config:
+    description: 'Base64 encoded kube_config with ability to create namespaces/serviceaccounts'
+    required: true
+outputs:
+  new-namespace:
+    description: 'The namespace we created'
+    value: ${{ steps.deploy-chart.outputs.k8s_namespace }}
+  new-serviceaccount:
+    description: 'The kubernetes service account we created'
+    value: ${{ steps.get-token.outputs.k8s_serviceaccount }}
+  new-kubeconfig:
+    description: 'The new kubeconfig for this environment'
+    value: ${{ steps.get-kubeconfig.outputs.new_kubeconfig }}
+  
+runs:
+  using: "composite"
+  steps:
+    - name: Set environs
+      shell: bash
+      run: |
+        echo "TARGET_NAMESPACE=${{ inputs.basename }}-infra-${{ inputs.environment}}" >> $GITHUB_ENV
+        echo "TARGET_SA=${{inputs.basename}}-admin" >> $GITHUB_ENV
+    - name: Install zip, curl
+      shell: bash
+      run: |
+        type -p curl >/dev/null || (sudo apt-get update --yes && sudo apt-get install curl --yes)
+        type -p zip >/dev/null || (sudo apt-get update --yes && sudo apt-get install zip --yes)
+
+    - name: Setup Kubectl
+      uses: azure/setup-kubectl@v1
+      with:
+        version:  'v1.29.0'
+
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: 3.13.1
+
+    - name: Load Kubeconfig
+      shell: bash
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ inputs.kube_admin_config }}" | base64 -d > $HOME/.kube/config
+
+    - name: Deploy Chart
+      id: deploy-chart
+      shell: bash
+      run: |
+        helm install $TARGET_NAMESPACE repo-namespace-0.1.1.tgz \
+        --set namespace=$TARGET_NAMESPACE \
+        --set repositoryName=${{ inputs.basename }} \
+        --namespace github-repos --create-namespace
+        echo "k8s_namespace=$TARGET_NAMESPACE" >> $GITHUB_OUTPUT
+
+    - name: Get ServiceAccount Token
+      id: get-token
+      shell: bash
+      run: |
+        K8S_TOKEN=$(kubectl get secret ${TARGET_SA}-secret -n $TARGET_NAMESPACE -o jsonpath="{.data.token}" | base64 --decode)
+        echo "::add-mask::$K8S_TOKEN"
+        echo "k8s_token=$K8S_TOKEN" >> $GITHUB_OUTPUT
+        echo "k8s_serviceaccount=$TARGET_SA" >> $GITHUB_OUTPUT
+
+    - name: Create kubeconfig file
+      shell: bash
+      run: |
+        API_SERVER_URL=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+        CA_DATA=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' --flatten)
+        cat <<EOF > $HOME/serviceaccount-kubeconfig
+        apiVersion: v1
+        kind: Config
+        clusters:
+        - name: default-cluster
+          cluster:
+            certificate-authority-data: $CA_DATA
+            server: $API_SERVER_URL
+        contexts:
+        - name: default-context
+          context:
+            cluster: default-cluster
+            namespace: $TARGET_NAMESPACE
+            user: default-user
+        current-context: default-context
+        users:
+        - name: default-user
+          user:
+            token: ${{ steps.get-token.outputs.k8s_token }}
+        EOF
+    - name: Get KubeConfig Data
+      id: get-kubeconfig
+      shell: bash
+      run: |
+        NEW_KUBE_DATA=$(cat $HOME/serviceaccount-kubeconfig | base64 -w 0)
+        echo "::add-mask::$NEW_KUBE_DATA"
+        echo "new_kubeconfig=$NEW_KUBE_DATA" >> $GITHUB_OUTPUT
+
+
