@@ -57,7 +57,7 @@ runs:
       id: deploy-chart
       shell: bash
       run: |
-        helm install $TARGET_NAMESPACE repo-namespace-0.1.1.tgz \
+        helm install $TARGET_NAMESPACE repo-namespace-0.1.2.tgz \
         --set namespace=$TARGET_NAMESPACE \
         --set repositoryName=${{ inputs.basename }} \
         --set versionControlSystem=github \
