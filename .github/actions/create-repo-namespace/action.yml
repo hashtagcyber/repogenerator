@@ -57,9 +57,11 @@ runs:
       id: deploy-chart
       shell: bash
       run: |
-        helm install $TARGET_NAMESPACE repo-namespace-0.1.1.tgz \
+        helm install $TARGET_NAMESPACE repo-namespace-0.1.2.tgz \
         --set namespace=$TARGET_NAMESPACE \
         --set repositoryName=${{ inputs.basename }} \
+        --set versionControlSystem=github \
+        --set versionControlPath=${{ github.repository_owner }}.${{ inputs.basename }} \
         --namespace github-repos --create-namespace
         echo "k8s_namespace=$TARGET_NAMESPACE" >> $GITHUB_OUTPUT
 

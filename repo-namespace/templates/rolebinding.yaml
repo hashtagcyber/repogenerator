@@ -3,6 +3,9 @@ kind: RoleBinding
 metadata:
   name: {{ .Values.repositoryName }}-namespace-admin-binding
   namespace: {{ .Values.namespace }}
+  labels:
+    versionControlSystem: {{ .Values.versionControlSystem }}
+    versionControlPath: {{ .Values.versionControlPath }}
 subjects:
 - kind: ServiceAccount
   name: {{ .Values.repositoryName }}-admin
