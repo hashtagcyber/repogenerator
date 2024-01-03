@@ -3,6 +3,9 @@ kind: Role
 metadata:
   namespace: {{ .Values.namespace }}
   name: {{ .Values.repositoryName }}-namespace-admin
+  labels:
+    versionControlSystem: {{ .Values.versionControlSystem }}
+    versionControlPath: {{ .Values.versionControlPath }}
 rules:
 - apiGroups: [""]
   resources: ["pods", "pods/log", "services", "configmaps", "secrets"]

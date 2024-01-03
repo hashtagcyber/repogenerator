@@ -3,3 +3,7 @@ namespace: firefly
 
 # Repository name
 repositoryName: myrepo
+
+# IaC Labels
+versionControlSystem: github
+versionControlPath: myorg.myreponame
